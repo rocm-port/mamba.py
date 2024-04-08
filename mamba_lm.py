@@ -126,11 +126,7 @@ class MambaLM(nn.Module):
 
         return logits, caches
     
-    # TODO temperature
-    # TODO process prompt in parallel, and pass in sequential mode when prompt is finished ?
-    def generate(self, tokenizer, prompt: str, num_tokens: int = 50, sample: bool = True, top_k: int = 40):
-        self.eval()
-
+    def init_runs(self, tokenizer, prompt: str):
         input_ids = tokenizer(prompt, return_tensors='pt').input_ids.to(next(self.parameters()).device) # (1, num_tokens)
 
         # caches is a list of cache, one per layer
@@ -138,6 +134,14 @@ class MambaLM(nn.Module):
         # the hidden state because the update is like an RNN
         # the last d_conv-1 inputs because they are used in a 1d convolution (usually d_conv=4 so this is not large)
         caches = [(None, torch.zeros(1, self.config.d_inner, self.config.d_conv-1, device=input_ids.device)) for _ in range(self.config.n_layers)]
+        return input_ids, caches
+
+    # TODO temperature
+    # TODO process prompt in parallel, and pass in sequential mode when prompt is finished ?
+    def generate(self, tokenizer, prompt: str, num_tokens: int = 50, sample: bool = True, top_k: int = 40):
+        self.eval()
+
+        input_ids, caches = self.init_runs(tokenizer, prompt)
 
         for i in range(input_ids.size(1) + num_tokens - 1):
             with torch.no_grad():
